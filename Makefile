@@ -19,10 +19,11 @@ gen-go:
 build: build-docs
 	go build ./...
 
-# Sync spec into cmd/tt-api-docs for embedding
+# Sync spec into cmd/tt-api-docs and pkg/docs for embedding
 docs-spec:
 	@cp openapi.yaml cmd/tt-api-docs/spec/openapi.yaml
-	@echo "Synced openapi.yaml -> cmd/tt-api-docs/spec/"
+	@cp openapi.yaml pkg/docs/spec/openapi.yaml
+	@echo "Synced openapi.yaml -> cmd/tt-api-docs/spec/, pkg/docs/spec/"
 
 # Build tt-api-docs binary (Swagger UI server)
 build-docs: docs-spec
