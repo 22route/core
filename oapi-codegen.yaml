@@ -1,0 +1,7 @@
+# oapi-codegen config for github.com/22route/core
+# Run: oapi-codegen -config oapi-codegen.yaml openapi.yaml
+package: api
+output: pkg/api/core.gen.go
+generate:
+  models: true
+  client: true

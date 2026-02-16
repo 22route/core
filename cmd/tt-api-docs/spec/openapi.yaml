@@ -1,0 +1,299 @@
+openapi: 3.0.3
+info:
+  title: 22route Core API
+  description: |
+    Shared contract for 22route: Gateway API (gateway/agent ↔ control plane).
+    Repo: github.com/22route/core
+  version: 0.1.0
+  license:
+    name: MIT
+
+servers:
+  - url: https://cp.22route.example.com
+    description: Control plane (example)
+
+tags:
+  - name: gateway
+    description: Gateway API (internal, gateway/agent ↔ control plane)
+
+paths:
+  /internal/gateway/v1/auth/validate:
+    post:
+      tags: [gateway]
+      summary: Validate token
+      operationId: ValidateToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenValidateRequest'
+      responses:
+        '200':
+          description: Token valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenValidateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /internal/gateway/v1/config:
+    get:
+      tags: [gateway]
+      summary: Get gateway config
+      description: Listeners, routes, tunnels for this gateway. Auth by gateway API key or bearer.
+      operationId: GetGatewayConfig
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - name: gateway_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Gateway instance ID (if not in token)
+      responses:
+        '200':
+          description: Current config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GatewayConfig'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /internal/gateway/v1/gateways:
+    post:
+      tags: [gateway]
+      summary: Register gateway
+      operationId: RegisterGateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GatewayRegistration'
+      responses:
+        '201':
+          description: Gateway registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gateway'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /internal/gateway/v1/gateways/{gateway_id}/heartbeat:
+    post:
+      tags: [gateway]
+      summary: Gateway heartbeat
+      operationId: GatewayHeartbeat
+      parameters:
+        - $ref: '#/components/parameters/GatewayId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Heartbeat'
+      responses:
+        '204':
+          description: Accepted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Gateway not found
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Gateway-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    GatewayId:
+      name: gateway_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    TokenValidateRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: User or gateway token
+
+    TokenValidateResponse:
+      type: object
+      required: [valid]
+      properties:
+        valid:
+          type: boolean
+        user_id:
+          type: string
+          format: uuid
+          description: Present when valid and token is user token
+        group_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        default_route_id:
+          type: string
+          format: uuid
+          nullable: true
+        route_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Resolved route for this token
+
+    GatewayConfig:
+      type: object
+      properties:
+        listeners:
+          type: array
+          items:
+            $ref: '#/components/schemas/ListenerConfig'
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteConfig'
+        tunnels:
+          type: array
+          items:
+            $ref: '#/components/schemas/TunnelConfig'
+        updated_at:
+          type: string
+          format: date-time
+
+    ListenerConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        port:
+          type: integer
+        protocol:
+          type: string
+          enum: [http, https, socks5, socks4]
+        default_group_id:
+          type: string
+          format: uuid
+        default_anonymous_group_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    RouteConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        listener_id:
+          type: string
+          format: uuid
+        group_id:
+          type: string
+          format: uuid
+        tunnel_id:
+          type: string
+          format: uuid
+          nullable: true
+        egress_type:
+          type: string
+          enum: [local, ssh, proxy]
+        egress_config:
+          type: object
+          additionalProperties: true
+
+    TunnelConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [ssh, local, proxy]
+        config:
+          type: object
+          additionalProperties: true
+        static:
+          type: boolean
+          description: If true, keep alive; if false, on-demand
+
+    GatewayRegistration:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+          example: "1.0.0"
+        addrs:
+          type: array
+          items:
+            type: string
+          description: Reachable addresses (host:port)
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          example: { region: eu-west-1, az: a }
+
+    Gateway:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        api_key:
+          type: string
+          description: Use for subsequent config/heartbeat calls
+        created_at:
+          type: string
+          format: date-time
+
+    Heartbeat:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, draining]
+        tunnels_count:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Invalid or missing auth
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

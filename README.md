@@ -8,6 +8,7 @@ Shared OpenAPI contract and generated Go code for 22route.
 
 - **openapi.yaml** — Gateway API (gateway/agent ↔ control plane): token validation, config, gateway registration, heartbeat.
 - **pkg/api/** — Go types and HTTP client generated from the spec (oapi-codegen).
+- **cmd/tt-api-docs/** — HTTP server with embedded Swagger UI for the API spec.
 
 Used by:
 
@@ -54,7 +55,19 @@ client, _ := api.NewClientWithResponses("https://cp.example.com", api.WithReques
 resp, err := client.ValidateTokenWithResponse(ctx, api.ValidateTokenJSONRequestBody{Token: "..."})
 ```
 
+## API docs (Swagger UI)
+
+Build and run the docs server (embeds the spec and serves Swagger UI):
+
+```bash
+make build-docs
+./bin/tt-api-docs
+```
+
+Then open http://localhost:8080 . Use `-addr` to change listen address, e.g. `./bin/tt-api-docs -addr :9090`.
+
+After changing **openapi.yaml**, run `make build-docs` again so the embedded spec is updated.
+
 ## License
 
 MIT
-# core
